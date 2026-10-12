@@ -1,0 +1,9 @@
+# Go
+/go-control-plane/dovetail-control-plane
+/go-control-plane/dovetail-sim
+
+# Java
+/java-worker/target/
+
+# macOS
+.DS_Store
