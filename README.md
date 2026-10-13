@@ -4,7 +4,7 @@
 
 A dovetail joint holds without fasteners because the pieces are cut to resist being pulled apart. The name is the point: a scheduler's correctness lives in the fit between what it has promised, what is actually running, and what each machine believes — and those three come apart the moment anything fails.
 
-Dovetail is a scheduler and control plane in **4823 lines of Go** and **767 lines of Java**, backed by **2400 lines of tests** — **97 tests** across both languages, clean under `-race`. It implements per-tenant quotas, Dominant Resource Fairness with weights, a three-stage placement pipeline, reservations, heartbeat-based failure detection, reconciliation, gang scheduling, and a workload simulator that drives the real scheduler on a virtual clock.
+Dovetail is a scheduler and control plane in **4823 lines of Go** and **767 lines of Java**, backed by **2400 lines of tests** — **97 tests** across both languages, clean under `-race`. It implements per-tenant quotas, Dominant Resource Fairness with weights, a three-stage placement pipeline, reservations, heartbeat-based failure detection, reconciliation, gang scheduling, a workload simulator that drives the real scheduler on a virtual clock, and a Kubernetes scheduler extender.
 
 The thing I would point at: **the simulator refuted two of my own design assumptions.** Quota turned out to protect nothing that fair share was not already protecting, and the packing-bias knob I expected to matter is inert across its entire range. Both are in [`bench/results.md`](bench/results.md) as refuted claims rather than quietly dropped.
 
