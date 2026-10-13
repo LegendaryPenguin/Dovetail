@@ -493,3 +493,50 @@ func (s *Scheduler) AssignmentsOn(workerID string) []Assignment {
 	defer s.mu.Unlock()
 	return s.ledger.AssignmentsOn(workerID)
 }
+
+// Available returns a worker's capacity that is genuinely free for new work.
+//
+// Reported free capacity minus unconfirmed reservations — the quantity from
+// reservations.go, exposed because the Kubernetes extender has to answer
+// "does this fit" using the same number the scheduler itself would use.
+// Answering from worker.Reported instead would reproduce the double-booking
+// bug one layer out: kube-scheduler would be told a node fits when this
+// cycle has already promised the gap away.
+//
+// An unknown worker returns the zero vector, so nothing fits — which is the
+// correct answer for capacity the control plane has no record of.
+func (s *Scheduler) Available(workerID string) Resources {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	w, ok := s.registry.Get(workerID)
+	if !ok {
+		return Resources{}
+	}
+	return s.ledger.Available(w)
+}
+
+// ScoreWorker returns the placement score a worker would receive for a
+// request, and whether the worker is known.
+//
+// Exposed for the Kubernetes extender's prioritize call so that both
+// schedulers rank nodes identically. A separate scoring implementation on the
+// Kubernetes side would drift from this one, and the symptom would be
+// placements that look wrong only when the extender is in the path.
+func (s *Scheduler) ScoreWorker(workerID string, request Resources, tenant string,
+	now time.Time) (float64, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	w, ok := s.registry.Get(workerID)
+	if !ok {
+		return 0, false
+	}
+	workers := s.registry.Snapshot()
+	ctx := SchedulingContext{
+		Now:             now,
+		Config:          s.config,
+		ClusterTotal:    s.registry.ClusterCapacity(now, s.config.HeartbeatTimeout),
+		TenantZoneCount: s.tenantZoneCountsLocked(workers),
+	}
+	return Score(w, s.ledger, request, tenant, ctx), true
+}

@@ -4,7 +4,7 @@
 
 A dovetail joint holds without fasteners because the pieces are cut to resist being pulled apart. The name is the point: a scheduler's correctness lives in the fit between what it has promised, what is actually running, and what each machine believes — and those three come apart the moment anything fails.
 
-Dovetail is a scheduler and control plane in **4,083 lines of Go** and **767 lines of Java**, backed by **1,598 lines of tests** — **66 tests** across both languages, clean under `-race`. It implements per-tenant quotas, Dominant Resource Fairness with weights, a three-stage placement pipeline, reservations, heartbeat-based failure detection, reconciliation, gang scheduling, and a workload simulator that drives the real scheduler on a virtual clock.
+Dovetail is a scheduler and control plane in **4823 lines of Go** and **767 lines of Java**, backed by **2400 lines of tests** — **97 tests** across both languages, clean under `-race`. It implements per-tenant quotas, Dominant Resource Fairness with weights, a three-stage placement pipeline, reservations, heartbeat-based failure detection, reconciliation, gang scheduling, and a workload simulator that drives the real scheduler on a virtual clock.
 
 The thing I would point at: **the simulator refuted two of my own design assumptions.** Quota turned out to protect nothing that fair share was not already protecting, and the packing-bias knob I expected to matter is inert across its entire range. Both are in [`bench/results.md`](bench/results.md) as refuted claims rather than quietly dropped.
 
@@ -47,6 +47,8 @@ The specific thing I could not have told you beforehand: **what "available capac
 
 **Simulates** multi-tenant workloads on a virtual clock to compare policies.
 
+**Speaks the Kubernetes scheduler-extender protocol**, so a real kube-scheduler can delegate filtering and scoring to Dovetail — including parsing the quantity formats Kubernetes actually uses, where conflating `1M` with `1Mi` is a 4.8% error that compounds per unit.
+
 ## 🧱 How I Built It
 
 **Week 1 — the objects, and the mistake I was about to make.** Jobs, tasks, tenants, workers, resource vectors, leases. I wrote `Resources` as a fixed two-dimensional vector rather than a map, which looks like a limitation and is a correctness decision: a map makes every arithmetic operation partial, and "what is the sum of `{cpu}` and `{cpu, mem}`" is a question whose wrong answer double-books a machine.
@@ -61,7 +63,7 @@ The specific thing I could not have told you beforehand: **what "available capac
 
 **Week 6 — gangs and topology.** Gang feasibility is decided for the whole set against a scratch ledger before anything is committed, because a half-placed gang holds capacity and makes no progress, and two of them can hold each other off indefinitely.
 
-**Week 7 — Java workers and the simulator.** The worker is the execution side and deliberately a separate process in a separate language: it forced the control-plane/worker boundary to be a real protocol rather than a function call.
+**Week 7 — Java workers, the simulator, and the Kubernetes extender.** The worker is the execution side and deliberately a separate process in a separate language: it forced the control-plane/worker boundary to be a real protocol rather than a function call. The extender is the other direction — the seam where an external scheduler asks Dovetail for a decision — and building it meant exposing `Available()` and `ScoreWorker()` so both schedulers rank nodes with the same code rather than two implementations that drift.
 
 ### The three capacities
 
@@ -149,7 +151,8 @@ Full detail in [`bench/results.md`](bench/results.md). The headlines:
 - **Gang placement is first-fit-decreasing, not optimal.** Bin packing is NP-hard, so a genuinely optimal gang placement is not on the table; largest-first avoids the specific failure where a gang fragments the cluster and then cannot fit its own largest member.
 - **Resources are two dimensions.** No GPUs, no disk, no network bandwidth, no custom resources. Adding a third is mechanical; adding arbitrary ones means giving up total arithmetic, which is what the fixed vector buys.
 - **No authentication on any endpoint.** Any process that can reach the port can register as a worker of arbitrary capacity, submit jobs as any tenant, or drain a machine.
-- **The Kubernetes adapter is not here.** It was in my original plan for week 7 and I built the simulator instead, because the simulator answers questions and an adapter only moves data. Placement is structured to make one straightforward — `Topology` already carries zone and rack — but it does not exist and the README should not imply otherwise.
+- **The Kubernetes integration is a scheduler extender, not a controller.** It speaks the `/filter` and `/prioritize` protocol so a real kube-scheduler can delegate node selection to Dovetail, and it translates Pod specs and task state in both directions. It does **not** watch the API server, bind pods, or run as a kubelet — there is no client-go dependency and no cluster connection. Feed it Pod JSON and it answers; it does not go looking. That boundary is deliberate: the extender protocol is exactly where a cluster asks for a scheduling decision, and everything past it (informers, leader election, the bind call, resource versions) is plumbing that would triple the code and test nothing about scheduling.
+- **The Kubernetes phase mapping is lossy in one way that matters.** Dovetail distinguishes Pending (not placed) from Assigned (placed, not yet confirmed); Kubernetes has one phase for both. Only the `Reason` field separates them, so a caller reading the phase alone will misreport one of the two. There is a test pinning this specifically, because I got it wrong first.
 - **`MaxUnitsPerCycle` changes behaviour under extreme backlog.** A tenant with 36,000 queued tasks is considered for its first 512 per cycle, so the unplaced reasons a cycle reports cover a prefix of the queue rather than all of it. Correct for throughput, slightly misleading in operator output.
 - **The simulator cannot produce genuine control-plane/worker divergence.** It generates heartbeats from the control plane's own view, so a worker only disagrees through explicitly injected failures. The orphan-adoption path is covered by unit tests and under-exercised by simulation.
 - **Worker-removal cost is not measured.** The simulator removes a worker from the registry directly, bypassing the staleness reaper, so that scenario measures capacity loss and not detection latency. The stalled-worker scenario is the one with a real number.
@@ -176,6 +179,9 @@ mvn test && mvn package
 
 # Everything: control plane + 3 real Java workers + a worker killed mid-flight
 cd .. && ./scripts/demo.sh
+
+# With the Kubernetes scheduler extender on its own port
+go run ./cmd/dovetail-control-plane -addr 127.0.0.1:8080 -k8s-extender 127.0.0.1:8081
 
 # The six simulation experiments
 cd go-control-plane && go run ./cmd/dovetail-sim
@@ -212,6 +218,7 @@ go-control-plane/
   scheduler.go      the five-step cycle
   server.go         HTTP: worker-facing and operator-facing
   simulator/        synthetic tenants on a virtual clock
+  k8s/              Pod translation and the scheduler-extender protocol
   cmd/              dovetail-control-plane, dovetail-sim
 
 java-worker/
