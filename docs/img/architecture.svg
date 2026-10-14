@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 680" width="980" height="680" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8b9bb4"/>
+    </marker>
+    <marker id="arrowAccent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5eb0ef"/>
+    </marker>
+    <marker id="arrowWarn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#d8a657"/>
+    </marker>
+  </defs>
+
+  <rect width="980" height="680" fill="#14161b"/>
+
+  <text x="32" y="44" fill="#e6e9ef" font-size="21" font-weight="600">Dovetail</text>
+  <text x="32" y="68" fill="#8b9bb4" font-size="13">multi-tenant scheduler — "available capacity" is three numbers, not one</text>
+
+  <!-- ===================== submitters ===================== -->
+  <rect x="32" y="96" width="176" height="128" rx="6" fill="#1b1f27" stroke="#2f3643"/>
+  <text x="48" y="120" fill="#e6e9ef" font-size="12">tenants</text>
+  <text x="48" y="142" fill="#6f7d94" font-size="10.5">acme   40c/160G  w=3</text>
+  <text x="48" y="158" fill="#6f7d94" font-size="10.5">beta   20c/80G   w=1</text>
+  <text x="48" y="174" fill="#6f7d94" font-size="10.5">batch  80c/320G  w=1</text>
+  <text x="48" y="198" fill="#6f7d94" font-size="10.5">jobs · tasks · gangs</text>
+  <text x="48" y="214" fill="#6f7d94" font-size="10.5">priority: within a tenant</text>
+
+  <path d="M 208 160 L 250 160" stroke="#8b9bb4" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- ===================== control plane ===================== -->
+  <rect x="250" y="96" width="470" height="474" rx="8" fill="#171a21" stroke="#39404f"/>
+  <text x="268" y="122" fill="#5eb0ef" font-size="13" font-weight="600">control plane  (Go)</text>
+  <text x="620" y="122" fill="#6f7d94" font-size="11">owns intent</text>
+
+  <!-- cycle -->
+  <rect x="268" y="138" width="434" height="186" rx="6" fill="#1e232c" stroke="#2f3643"/>
+  <text x="282" y="160" fill="#e6e9ef" font-size="12">scheduling cycle  —  order is load-bearing</text>
+
+  <rect x="282" y="172" width="200" height="30" rx="4" fill="#232936" stroke="#2f3643"/>
+  <text x="292" y="192" fill="#cdd6e3" font-size="10.5">1. expire dead + lapsed</text>
+  <rect x="490" y="172" width="198" height="30" rx="4" fill="#232936" stroke="#2f3643"/>
+  <text x="500" y="192" fill="#cdd6e3" font-size="10.5">2. snapshot fleet, once</text>
+
+  <rect x="282" y="208" width="406" height="46" rx="4" fill="#232936" stroke="#3a6ea5"/>
+  <text x="292" y="227" fill="#5eb0ef" font-size="10.5">3. place: lowest weighted DRF share → ONE unit → recompute</text>
+  <text x="292" y="243" fill="#6f7d94" font-size="10">ordering once per cycle is not fair sharing — tenant one wins</text>
+
+  <rect x="282" y="260" width="200" height="30" rx="4" fill="#232936" stroke="#2f3643"/>
+  <text x="292" y="280" fill="#cdd6e3" font-size="10.5">filter → then score</text>
+  <rect x="490" y="260" width="198" height="30" rx="4" fill="#232936" stroke="#2f3643"/>
+  <text x="500" y="280" fill="#cdd6e3" font-size="10.5">gangs: atomic or deferred</text>
+
+  <rect x="282" y="296" width="406" height="18" rx="4" fill="#1e232c" stroke="#5a4a2a"/>
+  <text x="292" y="309" fill="#d8a657" font-size="10">4. audit: ledger vs task phases, derived two ways</text>
+
+  <!-- ledger -->
+  <rect x="268" y="336" width="434" height="112" rx="6" fill="#1b1f27" stroke="#3a6ea5"/>
+  <text x="282" y="358" fill="#5eb0ef" font-size="12">the reservation ledger</text>
+  <text x="282" y="378" fill="#cdd6e3" font-size="10.5">Capacity   the machine's total, static</text>
+  <text x="282" y="395" fill="#cdd6e3" font-size="10.5">Reported   free per last heartbeat — counts what runs</text>
+  <text x="282" y="412" fill="#cdd6e3" font-size="10.5">Reserved   promised since, not yet confirmed</text>
+  <text x="282" y="434" fill="#5eb0ef" font-size="11">Available = Reported − Reserved(unconfirmed)</text>
+
+  <!-- reconcile -->
+  <rect x="268" y="460" width="434" height="92" rx="6" fill="#1e232c" stroke="#2f3643"/>
+  <text x="282" y="482" fill="#e6e9ef" font-size="12">reconciliation  —  intent vs execution</text>
+  <text x="282" y="502" fill="#6f7d94" font-size="10.5">orphan  worker runs it, we have no record → adopt</text>
+  <text x="282" y="518" fill="#6f7d94" font-size="10.5">ghost   we think it runs, worker denies → requeue</text>
+  <text x="282" y="540" fill="#6f7d94" font-size="10">authoritative about intent; the worker about execution</text>
+
+  <!-- ===================== workers ===================== -->
+  <path d="M 720 300 L 760 300" stroke="#8b9bb4" stroke-width="1.6" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 760 330 L 720 330" stroke="#d8a657" stroke-width="1.6" fill="none" marker-end="url(#arrowWarn)"/>
+  <text x="722" y="290" fill="#6f7d94" font-size="9.5">assign</text>
+  <text x="716" y="350" fill="#d8a657" font-size="9.5">beat</text>
+
+  <rect x="760" y="96" width="188" height="300" rx="8" fill="#171a21" stroke="#39404f"/>
+  <text x="776" y="122" fill="#5eb0ef" font-size="13" font-weight="600">workers  (Java)</text>
+  <text x="776" y="140" fill="#6f7d94" font-size="10.5">owns execution</text>
+
+  <rect x="776" y="154" width="156" height="78" rx="5" fill="#1e232c" stroke="#2f3643"/>
+  <text x="788" y="174" fill="#cdd6e3" font-size="11">TaskRegistry</text>
+  <text x="788" y="191" fill="#6f7d94" font-size="10">synchronized, not a</text>
+  <text x="788" y="204" fill="#6f7d94" font-size="10">concurrent map — the</text>
+  <text x="788" y="217" fill="#6f7d94" font-size="10">operation is compound</text>
+  <text x="788" y="228" fill="#6f7d94" font-size="10">accepted counts as used</text>
+
+  <rect x="776" y="242" width="156" height="62" rx="5" fill="#1e232c" stroke="#2f3643"/>
+  <text x="788" y="262" fill="#cdd6e3" font-size="11">one outbound thread</text>
+  <text x="788" y="279" fill="#6f7d94" font-size="10">completions queued and</text>
+  <text x="788" y="292" fill="#6f7d94" font-size="10">drained by the heartbeat</text>
+
+  <rect x="776" y="314" width="156" height="66" rx="5" fill="#1e232c" stroke="#5a4a2a"/>
+  <text x="788" y="334" fill="#d8a657" font-size="10.5">epoch check</text>
+  <text x="788" y="350" fill="#6f7d94" font-size="10">a replayed command</text>
+  <text x="788" y="363" fill="#6f7d94" font-size="10">cannot restart a task</text>
+  <text x="788" y="375" fill="#6f7d94" font-size="10">that already finished</text>
+
+  <!-- ===================== extender / sim ===================== -->
+  <rect x="760" y="412" width="188" height="92" rx="6" fill="#1b1f27" stroke="#2f3643"/>
+  <text x="776" y="434" fill="#e6e9ef" font-size="11">k8s extender</text>
+  <text x="776" y="452" fill="#6f7d94" font-size="10">/filter · /prioritize</text>
+  <text x="776" y="467" fill="#6f7d94" font-size="10">kube-scheduler hands</text>
+  <text x="776" y="482" fill="#6f7d94" font-size="10">node choice to Dovetail</text>
+  <text x="776" y="496" fill="#6f7d94" font-size="10">shares Available/Score</text>
+
+  <rect x="32" y="252" width="176" height="124" rx="6" fill="#1b1f27" stroke="#2f3643"/>
+  <text x="48" y="274" fill="#e6e9ef" font-size="11">simulator</text>
+  <text x="48" y="294" fill="#6f7d94" font-size="10">drives the real scheduler</text>
+  <text x="48" y="309" fill="#6f7d94" font-size="10">on a virtual clock</text>
+  <text x="48" y="330" fill="#6f7d94" font-size="10">6 experiments, 2 of which</text>
+  <text x="48" y="345" fill="#d8a657" font-size="10">refuted my own design</text>
+  <text x="48" y="360" fill="#d8a657" font-size="10">assumptions</text>
+
+  <text x="32" y="604" fill="#5eb0ef" font-size="11">quota is a ceiling that binds on an idle cluster. fair share is an ordering that only matters under contention.</text>
+  <text x="32" y="624" fill="#6f7d94" font-size="11">treat the share as a ceiling and the cluster idles while work queues. treat the quota as a preference and one tenant takes everything.</text>
+  <text x="32" y="650" fill="#6f7d94" font-size="11">DRF compares tenants on their dominant resource, so a CPU-bound and a memory-bound tenant can each get a meaningful half.</text>
+</svg>
